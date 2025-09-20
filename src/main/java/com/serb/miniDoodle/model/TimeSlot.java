@@ -1,8 +1,11 @@
 package com.serb.miniDoodle.model;
 
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.Instant;
@@ -11,11 +14,16 @@ import java.util.UUID;
 @Setter
 @Getter
 @AllArgsConstructor
+@NoArgsConstructor
 @EqualsAndHashCode
-public class TimeSlot implements Comparable<TimeSlot>{
-    private final UUID id;
-    private final Instant start;
-    private final Instant end;
+@Entity
+public class TimeSlot implements Comparable<TimeSlot> {
+    @Id
+    private UUID id;
+    private UUID userId;
+    private Instant start;
+    private Instant end;
+    private boolean busy;
 
     @Override
     public int compareTo(TimeSlot o) {
