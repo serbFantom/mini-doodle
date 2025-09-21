@@ -1,5 +1,6 @@
 package com.serb.miniDoodle.service;
 
+import com.serb.miniDoodle.domain.CalendarEvent;
 import com.serb.miniDoodle.model.Meeting;
 import com.serb.miniDoodle.model.TimeSlot;
 
@@ -8,9 +9,6 @@ import java.util.List;
 import java.util.UUID;
 
 public interface SchedulerService {
-    List<UUID> listUsers();
-
-    UUID createUser();
 
     TimeSlot createSlot(UUID userId, Instant start, Instant end, boolean busy);
 
@@ -25,4 +23,7 @@ public interface SchedulerService {
     List<TimeSlot> getSlots(UUID userId, Instant from, Instant to);
 
     List<Meeting> getMeetings(UUID userId, Instant from, Instant to);
+
+    List<CalendarEvent> getCalendar(UUID userId, Instant from, Instant to);
+
 }

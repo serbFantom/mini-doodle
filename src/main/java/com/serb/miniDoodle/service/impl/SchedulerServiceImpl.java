@@ -1,59 +1,62 @@
 package com.serb.miniDoodle.service.impl;
 
+import com.serb.miniDoodle.domain.CalendarEvent;
+import com.serb.miniDoodle.model.User;
+import com.serb.miniDoodle.repository.UserRepository;
+import io.github.resilience4j.bulkhead.Bulkhead;
+import io.github.resilience4j.decorators.Decorators;
 import com.serb.miniDoodle.model.Meeting;
 import com.serb.miniDoodle.model.TimeSlot;
-import com.serb.miniDoodle.model.UserCalendar;
 import com.serb.miniDoodle.repository.MeetingRepository;
 import com.serb.miniDoodle.repository.TimeSlotRepository;
 import com.serb.miniDoodle.service.SchedulerService;
+import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
+import java.util.stream.Stream;
 
 @Service
 public class SchedulerServiceImpl implements SchedulerService {
 
-    private final ConcurrentHashMap<UUID, UserCalendar> calendars = new ConcurrentHashMap<>();
-    //private final Bulkhead bulkhead = Bulkhead.ofDefaults("scheduler");
+    private final Bulkhead bulkhead = Bulkhead.ofDefaults("scheduler");
 
     private final TimeSlotRepository timeSlotRepository;
 
     private final MeetingRepository meetingRepository;
+    private final UserRepository userRepository;
 
-    public SchedulerServiceImpl(TimeSlotRepository timeSlotRepository, MeetingRepository meetingRepository) {
+    public SchedulerServiceImpl(TimeSlotRepository timeSlotRepository, MeetingRepository meetingRepository, UserRepository userRepository) {
         this.timeSlotRepository = timeSlotRepository;
         this.meetingRepository = meetingRepository;
+        this.userRepository = userRepository;
+    }
+
+    private <T> T withBulkhead(Supplier<T> supplier) {
+        return Decorators.ofSupplier(supplier).withBulkhead(bulkhead).get();
     }
 
     @Override
-    public List<UUID> listUsers() {
-        return StreamSupport.stream(timeSlotRepository.findAll().spliterator(), false)
-                .map(TimeSlot::getUserId)
-                .distinct()
-                .collect(Collectors.toList());
-    }
+    public TimeSlot createSlot(UUID userId, Instant startTime, Instant endTime, boolean busy) {
+        // Fetch the user from the database
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new EntityNotFoundException("User not found with id: " + userId));
 
-    @Override
-    public UUID createUser() {
-        return UUID.randomUUID();
-    }
-
-    @Override
-    public TimeSlot createSlot(UUID userId, Instant start, Instant end, boolean busy) {
-        TimeSlot newSlot = new TimeSlot(UUID.randomUUID(), userId, start, end, busy);
-        return timeSlotRepository.save(newSlot);
+        return withBulkhead(() -> {
+            TimeSlot newSlot = new TimeSlot(UUID.randomUUID(), user, startTime, endTime, busy);
+            return timeSlotRepository.save(newSlot);
+        });
     }
 
     @Override
     public boolean deleteSlot(UUID userId, UUID slotId) {
         return timeSlotRepository.findById(slotId)
                 .map(slot -> {
-                    if (slot.getUserId().equals(userId)) {
+                    if (slot.getUser().getId().equals(userId)) {
                         timeSlotRepository.deleteById(slotId);
                         return true;
                     }
@@ -65,14 +68,14 @@ public class SchedulerServiceImpl implements SchedulerService {
     public TimeSlot modifySlot(UUID userId, UUID slotId, Instant newStart, Instant newEnd, Boolean busy) {
         return timeSlotRepository.findById(slotId)
                 .map(slot -> {
-                    if (!slot.getUserId().equals(userId)) {
+                    if (!slot.getUser().getId().equals(userId)) {
                         return null;
                     }
                     if (newStart != null) {
-                        slot.setStart(newStart);
+                        slot.setStartTime(newStart);
                     }
                     if (newEnd != null) {
-                        slot.setEnd(newEnd);
+                        slot.setEndTime(newEnd);
                     }
                     if (busy != null) {
                         slot.setBusy(busy);
@@ -83,7 +86,9 @@ public class SchedulerServiceImpl implements SchedulerService {
 
     @Override
     public Meeting scheduleMeeting(UUID userId, String title, String description, List<UUID> participants, Instant start, Instant end) {
-        Meeting newMeeting = new Meeting(UUID.randomUUID(), title, description, userId, participants, start, end);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new EntityNotFoundException("User not found with id: " + userId));
+        Meeting newMeeting = new Meeting(UUID.randomUUID(), title, description, user, null, start, end, null);
         return meetingRepository.save(newMeeting);
     }
 
@@ -91,7 +96,7 @@ public class SchedulerServiceImpl implements SchedulerService {
     public boolean cancelMeeting(UUID userId, UUID meetingId) {
         return meetingRepository.findById(meetingId)
                 .map(meeting -> {
-                    if (meeting.getOrganizerId().equals(userId)) {
+                    if (meeting.getOrganizer().getId().equals(userId)) {
                         meetingRepository.deleteById(meetingId);
                         return true;
                     }
@@ -101,11 +106,27 @@ public class SchedulerServiceImpl implements SchedulerService {
 
     @Override
     public List<TimeSlot> getSlots(UUID userId, Instant from, Instant to) {
-        return timeSlotRepository.findByUserId(userId, from, to);
+        return timeSlotRepository.findByUserIdStartEndTime(userId, from, to);
     }
 
     @Override
     public List<Meeting> getMeetings(UUID userId, Instant from, Instant to) {
-        return meetingRepository.findByOrganizer(userId, userId, from, to);
+
+        return meetingRepository.findByOrganizerIdOrParticipants(userId, userId, from, to);
+    }
+
+    @Override
+    public List<CalendarEvent> getCalendar(UUID userId, Instant from, Instant to) {
+        List<CalendarEvent> timeSlots = getSlots(userId, from, to).stream()
+                .map(slot -> new CalendarEvent(slot.getId(), List.of(), CalendarEvent.EventType.TIME_SLOT))
+                .toList();
+
+        List<CalendarEvent> meetings = getMeetings(userId, from, to).stream()
+                .map(meeting -> new CalendarEvent(meeting.getId(), List.of(), CalendarEvent.EventType.MEETING))
+                .toList();
+
+        return Stream.concat(timeSlots.stream(), meetings.stream())
+                //.sorted(Comparator.comparing(CalendarEvent::getStart))
+                .collect(Collectors.toList());
     }
 }
