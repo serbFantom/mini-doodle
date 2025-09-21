@@ -4,10 +4,11 @@ Mini-Doodle is a lightweight, REST-based scheduling application designed to help
 
 ## Features
 
-*   **User Management**: Create and list users.
 *   **Time Slot Management**: Define personal availability by creating, deleting, and modifying time slots.
-*   **Meeting Scheduling**: Schedule meetings with multiple participants.
+*   **Meeting Scheduling**: Schedule meetings directly or create them from available time slots.
 *   **Calendar View**: Get a consolidated view of your schedule, including both time slots and meetings.
+*   **Rate Limiting**: Endpoints are protected against excessive requests to ensure application stability.
+*   **Service Protection**: Resilience4j is used to protect the application from being overloaded.
 
 ## Getting Started
 
@@ -51,17 +52,49 @@ Mini-Doodle is a lightweight, REST-based scheduling application designed to help
 
 ## API Endpoints
 
-The API is available at `/api`.
+The API is available at `/api/scheduler`. All endpoints are rate-limited.
 
 ### Time Slot Management
 
-*   `POST /api/users/{userId}/slots`: Creates a new time slot for a user.
+*   `POST /{userId}/slots`: Creates a new time slot for a user.
+    *   **Path Variable**: `userId` (UUID)
     *   **Query Parameters**: `start` (Instant), `end` (Instant), `busy` (boolean, optional, default: false)
-*   `DELETE /api/users/{userId}/slots/{slotId}`: Deletes a specific time slot.
-*   `PUT /api/users/{userId}/slots/{slotId}`: Modifies an existing time slot.
+
+*   `DELETE /{userId}/slots/{slotId}`: Deletes a specific time slot.
+    *   **Path Variables**: `userId` (UUID), `slotId` (UUID)
+
+*   `PUT /{userId}/slots/{slotId}`: Modifies an existing time slot.
+    *   **Path Variables**: `userId` (UUID), `slotId` (UUID)
     *   **Query Parameters**: `start` (Instant, optional), `end` (Instant, optional), `busy` (boolean, optional)
+
+### Meeting Scheduling
+
+*   `POST /{userId}/meetings`: Schedules a new meeting.
+    *   **Path Variable**: `userId` (UUID of the organizer)
+    *   **Request Body**:
+        ```json
+        {
+          "title": "string",
+          "description": "string",
+          "participants": ["UUID"],
+          "start": "Instant",
+          "end": "Instant"
+        }
+        ```
+
+*   `POST /{userId}/meetings/from-slots`: Creates meetings from a user's available (non-busy) time slots for a given set of participants.
+    *   **Path Variable**: `userId` (UUID of the organizer)
+    *   **Request Body**:
+        ```json
+        {
+          "title": "string",
+          "description": "string",
+          "participantIds": ["UUID"]
+        }
+        ```
 
 ### Calendar View
 
-*   `GET /api/users/{userId}/calendar`: Returns a consolidated view of a user's calendar, including time slots and meetings.
+*   `GET /{userId}/calendar`: Returns a consolidated view of a user's calendar, including time slots and meetings.
+    *   **Path Variable**: `userId` (UUID)
     *   **Query Parameters**: `from` (Instant), `to` (Instant)

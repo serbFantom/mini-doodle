@@ -1,8 +1,13 @@
 package com.serb.miniDoodle.controller;
 
-import com.serb.miniDoodle.domain.CalendarEvent;
+import com.serb.miniDoodle.dto.CalendarEvent;
+import com.serb.miniDoodle.dto.CreateMeetingsFromSlotsRequest;
+import com.serb.miniDoodle.dto.CreatedMeetingResponse;
+import com.serb.miniDoodle.dto.ScheduleMeetingRequest;
+import com.serb.miniDoodle.model.Meeting;
 import com.serb.miniDoodle.service.SchedulerService;
 import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -13,60 +18,76 @@ import java.util.Map;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api")
-@CrossOrigin
+@RequestMapping("/api/scheduler")
+@RequiredArgsConstructor
+@RateLimiter(name = "schedulerRateLimiter")
 public class SchedulerController {
-
     private final SchedulerService svc;
 
-    public SchedulerController(SchedulerService svc) {
-        this.svc = svc;
-    }
-
-
     // --- Slot Management ---
-    @PostMapping("/users/{userId}/slots")
-    @RateLimiter(name = "createSlotRateLimiter", fallbackMethod = "rateLimitFallback")
+    @PostMapping("/{userId}/slots")
     public ResponseEntity<?> createSlot(@PathVariable UUID userId, @RequestParam Instant start,
                                         @RequestParam Instant end, @RequestParam(defaultValue = "false") boolean busy) {
-        try {
             return ResponseEntity.ok(svc.createSlot(userId, start, end, busy));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        }
     }
 
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @DeleteMapping("/users/{userId}/slots/{slotId}")
+    @DeleteMapping("/{userId}/slots/{slotId}")
     public ResponseEntity<?> deleteSlot(@PathVariable UUID userId, @PathVariable UUID slotId) {
-        try {
             return ResponseEntity.ok(Map.of("deleted", svc.deleteSlot(userId, slotId)));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        }
     }
 
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PutMapping("/users/{userId}/slots/{slotId}")
+    @PutMapping("/{userId}/slots/{slotId}")
     public ResponseEntity<?> modifySlot(@PathVariable UUID userId, @PathVariable UUID slotId,
                                         @RequestParam(required = false) Instant start,
                                         @RequestParam(required = false) Instant end,
                                         @RequestParam(required = false) Boolean busy) {
-        try {
             return ResponseEntity.ok(svc.modifySlot(userId, slotId, start, end, busy));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        }
     }
 
-    @GetMapping("/users/{userId}/calendar")
-    public ResponseEntity<List<CalendarEvent>> getCalendar(@PathVariable UUID userId, @RequestParam Instant from, @RequestParam Instant to) {
-        return ResponseEntity.ok(svc.getCalendar(userId, from, to));
+    @PostMapping("/{userId}/meetings")
+    public ResponseEntity<Meeting> scheduleMeeting(
+            @PathVariable UUID userId,
+            @RequestBody ScheduleMeetingRequest request) {
+
+        Meeting meeting = svc.scheduleMeeting(
+                userId,
+                request.getTitle(),
+                request.getDescription(),
+                request.getParticipants(),
+                request.getStart(),
+                request.getEnd()
+        );
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(meeting);
     }
 
-    public ResponseEntity<?> rateLimitFallback(UUID userId, Instant start, Instant end, boolean busy, Throwable t) {
-        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS.value())  // HTTP 429 Too Many Requests
-                .body(Map.of("error", "Too many requests. Please try again later."));
+    @PostMapping("/{userId}/meetings/from-slots")
+    public ResponseEntity<List<CreatedMeetingResponse>> convertSlotsToMeetings(
+            @PathVariable UUID userId,
+            @RequestBody CreateMeetingsFromSlotsRequest request) {
+
+        List<Meeting> meetings = svc.createMeetingsFromAvailableSlots(
+                userId,
+                request.getTitle(),
+                request.getDescription(),
+                request.getParticipantIds()
+        );
+        List<CreatedMeetingResponse> response = meetings.stream()
+                .map(m -> new CreatedMeetingResponse(m.getId(), m.getTitle(), m.getStartTime(), m.getEndTime()))
+                .toList();
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @GetMapping("/{userId}/calendar")
+    public ResponseEntity<List<CalendarEvent>> getCalendar(
+            @PathVariable UUID userId,
+            @RequestParam("from") Instant from,
+            @RequestParam("to") Instant to) {
+
+        List<CalendarEvent> events = svc.getCalendarEvents(userId, from, to);
+        return ResponseEntity.ok(events);
     }
 
 

@@ -1,6 +1,6 @@
 package com.serb.miniDoodle.service.impl;
 
-import com.serb.miniDoodle.domain.CalendarEvent;
+import com.serb.miniDoodle.dto.CalendarEvent;
 import com.serb.miniDoodle.model.TimeSlot;
 import com.serb.miniDoodle.service.CalendarService;
 import lombok.RequiredArgsConstructor;

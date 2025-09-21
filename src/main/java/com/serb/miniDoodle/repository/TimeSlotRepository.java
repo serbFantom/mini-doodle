@@ -11,7 +11,9 @@ import java.util.UUID;
 @Repository
 public interface TimeSlotRepository extends JpaRepository<TimeSlot, UUID> {
 
-    List<TimeSlot> findByUserIdStartEndTime(
+    List<TimeSlot> findByUserIdAndStartTimeBetween(
             UUID userId, Instant startTime, Instant endTime
     );
+
+    List<TimeSlot> findByUserIdAndBusy(UUID userId, boolean b);
 }

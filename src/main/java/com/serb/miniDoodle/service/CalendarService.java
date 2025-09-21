@@ -1,6 +1,6 @@
 package com.serb.miniDoodle.service;
 
-import com.serb.miniDoodle.domain.CalendarEvent;
+import com.serb.miniDoodle.dto.CalendarEvent;
 import com.serb.miniDoodle.model.TimeSlot;
 
 import java.time.Instant;

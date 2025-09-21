@@ -1,6 +1,6 @@
 package com.serb.miniDoodle.service;
 
-import com.serb.miniDoodle.domain.CalendarEvent;
+import com.serb.miniDoodle.dto.CalendarEvent;
 import com.serb.miniDoodle.model.Meeting;
 import com.serb.miniDoodle.model.TimeSlot;
 
@@ -24,6 +24,11 @@ public interface SchedulerService {
 
     List<Meeting> getMeetings(UUID userId, Instant from, Instant to);
 
-    List<CalendarEvent> getCalendar(UUID userId, Instant from, Instant to);
+    List<Meeting> createMeetingsFromAvailableSlots(UUID userId, String title, String description, List<UUID> participantIds);
+
+    /**
+     * Converts all available (busy=false) slots of a user into meetings.
+     */
+    List<CalendarEvent> getCalendarEvents(UUID userId, Instant from, Instant to);
 
 }

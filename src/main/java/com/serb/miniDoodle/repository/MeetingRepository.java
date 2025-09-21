@@ -11,7 +11,7 @@ import java.util.UUID;
 @Repository
 public interface MeetingRepository extends JpaRepository<Meeting, UUID> {
 
-    List<Meeting> findByOrganizerIdOrParticipants(
-            UUID organizerId, UUID participantId, Instant startTime, Instant endTime
+    List<Meeting> findByUserIdAndStartTimeBetween(
+            UUID userId, Instant startTime, Instant endTime
     );
 }

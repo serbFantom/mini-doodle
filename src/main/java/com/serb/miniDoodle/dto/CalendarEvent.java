@@ -1,4 +1,4 @@
-package com.serb.miniDoodle.domain;
+package com.serb.miniDoodle.dto;
 
 import com.serb.miniDoodle.model.TimeSlot;
 import lombok.AllArgsConstructor;
@@ -6,7 +6,6 @@ import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -16,7 +15,7 @@ import java.util.UUID;
 @Getter
 public class CalendarEvent {
     private UUID userId;
-    private List<TimeSlot> timeSlots;
+    private List<TimeSlotDTO> timeSlots;
     private EventType type;
 
     public enum EventType {
